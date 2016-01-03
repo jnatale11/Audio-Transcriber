@@ -1,0 +1,390 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<script type="text/javascript">
+function WebSocketTest()
+         {  //audio file received
+var fileInput = document.getElementById("sound");
+var message="";
+if('files' in fileInput){
+	    //break up file into array of wav formatted buffers
+	    var myfile = fileInput.files[0];
+	    var fileReader = new FileReader;
+	    var Buffs = [];
+	    var sliceCount = 0;
+	    fileReader.onload = function(){
+		var arrBuff = this.result;
+		var blob = new Blob([arrBuff]);
+		var wavFile = new wav(blob);
+		wavFile.onloadend = function(){
+			console.log(this);
+			var size = this.getDuration();
+			console.log(size);
+			var count = size/300;
+			count = Math.ceil(count);
+			var newBuff;
+			for(z=0;z<count;z++){
+				if((z+1)==count){
+				     this.slice(z*300,size%300,sliceem);
+				}
+				else{
+				     this.slice(z*300,300,sliceem);
+				}
+			}
+			function sliceem(input){
+				var newblob = new Blob([input]);
+				Buffs[Buffs.length] = newblob;
+				//calculate blob size and output?
+				console.log("blob is for"+sliceCount);
+				sliceCount++;
+				//last callback moves to next stage
+				if(sliceCount==count)
+					StartStreaming(Buffs,count);
+			}
+	    };
+	    }
+	    fileReader.readAsArrayBuffer(myfile);
+	    }
+	
+	    function StartStreaming(Buffs,count5){
+		//make token and call first of WSSeshs
+		var tok=document.getElementById("vals").value;
+		//var mod="en-US_BroadbandModel";
+		var mod="en-US_NarrowbandModel";
+		var wsURI="wss://stream.watsonplatform.net/speech-to-text/api/v1/recognize?watson-token="+tok+"&model="+mod;
+		//call function which will build and monitor each ws sesh
+		WSSesh(Buffs,count5,0,wsURI);
+	    }
+
+	    function WSSesh(Buffs, count2, state, wsURI){
+
+	        var ws = new WebSocket(wsURI);
+
+			ws.onopen = function()
+               		{
+                  		// Web Socket connected, send data using send()
+		  		var msg = {'action': 'start', 'content-type': 'audio/wav', 'continuous': true, 'inactivity_timeout': -1};
+                  		ws.send(JSON.stringify(msg));
+               		};
+
+				
+               		ws.onmessage = function (evt)
+               		{
+                  		var msg = evt.data;
+				//alert(msg+" "+count2+" "+state);
+				var msg2 = msg.replace(/\s/g,"");
+				console.log(msg);
+		  		if(0 == msg2.localeCompare('{"state":"listening"}')){
+					console.log('said listening, state: '+state+' count: '+count2);
+					console.log(Buffs[state]);
+					//now need to send indexed buffer
+					ws.send(Buffs[state]);
+
+					//send closing message
+					var msg = {'action':'stop'};
+					ws.send(JSON.stringify(msg));
+					state++;
+		  		} else{
+					console.log('Got Result');
+					var count = 0;
+					var output = "";
+					var rawl="";
+					var first="";
+					//need to parse out msg
+					var res = msg.split("{");
+					for(i = 0; i < res.length; i++){
+						//skip first time
+						if(i == 0 || i ==1){
+							count++;
+							continue;
+						}
+						else{
+						    //case of last line
+						    if(i == (res.length -1)){
+							rawl = parseIt(res[i]);
+							rawl= rawl.charAt(0).toUpperCase()+rawl.slice(1,rawl.length-1);
+							rawl = processing(rawl);
+							output+=rawl+"."+"<br>";
+						    }
+						    else{
+						    //only if even process
+							if(count%2 !=0){
+							   rawl= parseIt(res[i]);
+							   rawl=rawl.charAt(0).toUpperCase()+rawl.slice(1,rawl.length-1);
+							   rawl = processing(rawl);
+							   output+=rawl+"."+"<br>";
+							}
+							count++;
+						    }
+						}
+					}
+					document.write(output);
+					ws.close();
+		  		}
+
+				function parseIt(str){
+					var arr = str.split('"');
+					return arr[5];
+				}
+				
+				function processing(str){
+					//replace all hesitations with commas
+					var ind = 0;
+					while(ind != -1){
+					    ind = str.indexOf('%HESITATION');
+					    if(ind == -1)
+						break;
+					    //create new string
+					    var strnew=str.slice(0,ind)+"*PAUSE*"+str.slice(ind+11);
+					    str = strnew;
+					}
+					return str;
+				}
+
+               		};
+
+				
+               		ws.onclose = function(){
+                  		// websocket is closed.
+                  		alert("CONNECTION is closed..."+state+count2);
+				console.log(state+" "+count2);
+				if(state < count2)
+					WSSesh(Buffs, count2, state, wsURI);
+               		};
+
+			ws.onerror = function(evt){
+				alert('Error!! '+evt.data);
+				state = count2+1;
+			};
+            		
+	    }
+
+	    //function to create wav file object
+	    function wav(file) {
+
+  // status
+  this.EMPTY              = 0; //  No data has been loaded yet.
+  this.LOADING            = 1; // Data is currently being loaded.
+  this.DONE               = 2; // The entire read request has been completed.
+  this.UNSUPPORTED_FORMAT = 3; // Error state - file format not recognized
+  this.readyState         = this.EMPTY;
+  this.error              = undefined;
+  
+  // original File and loaded ArrayBuffer
+  this.file          = file instanceof Blob ? file : undefined;
+  this.buffer        = file instanceof ArrayBuffer ? file : undefined;;
+  
+  // format
+  this.chunkID       = undefined; // must be RIFF
+  this.chunkSize     = undefined; // size of file after this field
+  this.format        = undefined; // must be WAVE
+  this.compression   = undefined; // 1=PCM
+  this.numChannels   = undefined; // Mono = 1, Stereo = 2
+  this.sampleRate    = undefined; // 8000, 44100, etc.
+  this.byteRate      = undefined; // bytes per second
+  this.blockAlign    = undefined; // number of bytes for one sample including all channels.
+  this.bitsPerSample = undefined; // 8 bits = 8, 16 bits = 16, etc.
+  
+  // data chunk
+  this.dataOffset    = -1; // index of data block
+  this.dataLength    = -1; // size of data block
+  
+  // let's take a peek
+  this.peek();
+}
+
+wav.prototype.peek = function () {
+  
+  this.readyState = this.LOADING;
+
+  // see if buffer is already loaded
+  if (this.buffer !== undefined) {
+    return this.parseArrayBuffer();
+  }
+  
+  var reader = new FileReader();
+  var that = this;
+  
+  // only load the first 44 bytes of the header
+  var headerBlob = this.sliceFile(0, 44);
+  reader.readAsArrayBuffer(headerBlob);
+  
+  reader.onloadend = function() {  
+    that.buffer = this.result;
+    that.parseArrayBuffer.apply(that);
+  };
+};
+wav.prototype.parseArrayBuffer = function () {
+  try {
+    this.parseHeader();
+    this.parseData();
+    this.readyState = this.DONE;
+  }
+  catch (e) {
+    this.readyState = this.UNSUPPORTED_FORMAT;
+    this.error      = e;
+  } 
+     
+  // trigger onloadend callback if exists
+  if (this.onloadend) {
+    this.onloadend.apply(this);
+  }
+};
+wav.prototype.parseHeader = function () {
+   
+  this.chunkID       = this.readText(0, 4);
+  this.chunkSize     = this.readDecimal(4, 4);
+  if (this.chunkID !== 'RIFF') throw 'NOT_SUPPORTED_FORMAT';
+    
+  this.format        = this.readText(8, 4);
+  if (this.format !== 'WAVE') throw 'NOT_SUPPORTED_FORMAT';
+  
+  this.compression   = this.readDecimal(20, 2); 
+  this.numChannels   = this.readDecimal(22, 2); 
+  this.sampleRate    = this.readDecimal(24, 4); 
+
+  // == SampleRate * NumChannels * BitsPerSample/8
+  this.byteRate      = this.readDecimal(28, 4); 
+  
+  // == NumChannels * BitsPerSample/8
+  this.blockAlign    = this.readDecimal(32, 2); 
+
+  this.bitsPerSample = this.readDecimal(34, 2);
+};
+wav.prototype.parseData = function () {
+
+  var chunkType = this.readText(36, 4);
+  var chunkSize = this.readDecimal(40, 4);
+  
+  // only support files where data chunk is first (canonical format)
+  if (chunkType === 'data') {
+    this.dataLength = chunkSize;
+    this.dataOffset = 44;
+  }
+  else {
+    // duration cant be calculated && slice will not work
+    throw 'NOT_CANONICAL_FORMAT: unsupported "' + chunkType + '"" chunk - was expecting data';
+  }
+};
+wav.prototype.slice = function (start, length, callback) {
+  
+  var reader = new FileReader();
+  var that = this;
+  
+  // use the byterate to calculate number of bytes per second
+  var start = this.dataOffset + (start * this.byteRate);
+  var end = start + (length * this.byteRate);
+  
+  var headerBlob = this.sliceFile(0, 44);
+  var dataBlob = this.sliceFile(start, end);
+
+  // concant header and data slice
+  var blob = new Blob([headerBlob, dataBlob]);
+
+  reader.readAsArrayBuffer(blob);
+  reader.onloadend = function() {  
+    
+    // update chunkSize in header
+    var chunkSize = new Uint8Array(this.result, 4, 4);
+    that.tolittleEndianDecBytes(chunkSize, 36+dataBlob.size);
+
+    // update dataChunkSize in header
+    var dataChunkSize = new Uint8Array(this.result, 40, 4);
+    that.tolittleEndianDecBytes(dataChunkSize, dataBlob.size);
+
+    if (callback) callback.apply(that, [this.result]);
+  };
+};
+wav.prototype.readText = function (start, length) {
+  var a = new Uint8Array(this.buffer, start, length);
+  var str = '';
+  for(var i = 0; i < a.length; i++) {
+    str += String.fromCharCode(a[i]);
+  }
+  return str;
+};
+
+/**
+ * Reads slice from buffer as Decimal
+ */
+wav.prototype.readDecimal = function (start, length) {
+  var a = new Uint8Array(this.buffer, start, length);
+  return this.fromLittleEndianDecBytes(a);
+};
+
+/**
+ * Calculates decimal value from Little-endian decimal byte array
+ */
+wav.prototype.fromLittleEndianDecBytes = function (a) {
+  var sum = 0;
+  for(var i = 0; i < a.length; i++)
+    sum |= a[i] << (i*8);
+  return sum;
+};
+
+/**
+ * Populate Little-endian decimal byte array from decimal value
+ */
+wav.prototype.tolittleEndianDecBytes = function (a, decimalVal) {
+  for(var i=0; i<a.length; i++) {
+    a[i] = decimalVal & 0xFF;
+    decimalVal >>= 8;
+  }
+  return a;
+};
+
+
+/**
+ * Slice the File using either standard slice or webkitSlice
+ */
+wav.prototype.sliceFile = function (start, end) {
+  if (this.file.slice) return this.file.slice(start, end); 
+  if (this.file.webkitSlice) return this.file.webkitSlice(start, end);
+};
+
+
+wav.prototype.isCompressed = function () {
+  return this.compression !== 1;  
+};
+  
+wav.prototype.isMono = function () {
+  return this.numChannels === 1;  
+};
+  
+wav.prototype.isStereo = function () {
+  return this.numChannels === 2;
+};
+
+wav.prototype.getDuration = function () {
+  return this.dataLength > -1 ? (this.dataLength / this.byteRate) : -1;
+};
+
+
+/**
+ * Override toString
+ */
+wav.prototype.toString = function () {
+  return (this.file ? this.file.name : 'noname.wav') + ' (' + this.chunkID + '/' + this.format + ')\n' +
+    'Compression: ' + (this.isCompressed() ? 'yes' : 'no (PCM)') + '\n' +
+    'Number of channels: ' + this.numChannels + ' (' + (this.isStereo()?'stereo':'mono') + ')\n' +
+    'Sample rate: ' + this.sampleRate + ' Hz\n'+
+    'Sample size: ' + this.bitsPerSample + '-bit\n'+
+    'Duration: ' + Math.round(this.getDuration()) + ' seconds';
+};
+         }
+
+      </script>	
+   </head>
+   <body>
+      <div id="sse">
+		<h3>Token</h3><br>
+		<input type="text" name="tok" id="vals"><br>
+		<h3>Password</h3><br>
+		<input type="password" id="pass"><br>
+		<h3>AudioFile</h3><br>
+		<input type="file" name="sound" multiple="multiple" id="sound" onchange="WebSocketTest()"><br>
+      </div>
+      <div id="info"></div><br>
+	<a download="info.wav" id="downloadLink" style:"display: none"></a>
+   </body>
+</html>
