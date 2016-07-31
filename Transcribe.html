@@ -1,8 +1,290 @@
 <!DOCTYPE HTML>
 <html>
 <head>
+<link rel="stylesheet" href="main.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
 <script type="text/javascript">
-function WebSocketTest()
+//Coding functionality of effective editor
+function SetEventListen(){
+    var editor = document.getElementById('edit_inp');
+    //different eveents to be triggered
+    editor.onkeydown = khandle;
+    editor.onkeypress = khandle;
+    var text_edit_mode = false;
+    //tapping space twice finishes word
+    var justSpaced = false;
+    //global height var, used to track the focus_word
+    var height = -1;
+    //function determining what to do
+    function khandle(e){
+	//two situations, either moving between words, or editing current word
+	//get focus_word element
+	var focuswordarr = document.getElementsByClassName('focus_word');
+	//need to make sure their is a focus word before continuing
+	if(focuswordarr.length == 1){
+	    var focusword = focuswordarr[0];
+	    if(text_edit_mode){
+	        //hit backspace 
+	        if(e.keyCode == 8){
+		    justSpaced = false;
+		    //deprecate word when editing
+		    focusword.textContent = focusword.textContent.substring(0,focusword.textContent.length-1);
+		    //can exit edit mode if empty
+		    if(focusword.textContent.length == 0){
+		    	//look for next word to take its place, 
+		    	//or if at end, previous
+		    	var res = slideForward(focusword.id);
+		    	if(res == -1)
+				res = slideBackward(focusword.id);
+		    	//old focus word becomes of class void
+		    	focusword.className = 'void';
+		    	if(res ==-1)
+				alert('no more words!');
+			text_edit_mode = false;
+		    }
+	        }
+		//case of adding other symbol/letter, two spaces to exit
+		else{
+			var charr = getChar(e);
+			if(charr){
+
+				//FIX SPACE FUNCITONALITY
+
+				if(0 == charr.localeCompare(' ')){
+				    //if already hit space once move on
+				    if(justSpaced){
+					//take away space
+					focusword.textContent = focusword.textContent.substring(0,focusword.textContent.length-1);
+					//no longer in 'edit' mode
+					text_edit_mode = false;
+					justSpaced = false;
+					//look for next word to take its place, 
+					//or if at end, previous
+		    			var res = slideForward(focusword.id);
+		    			if(res == -1)
+					    res = slideBackward(focusword.id);
+		    			//old focus word back to word
+		    			focusword.className = 'word';
+		    			if(res ==-1)
+					    alert('no more words!');
+				    }
+				    else{
+					focusword.textContent += ' ';
+					justSpaced = true;
+				    }
+				}
+				else{
+				    justSpaced = false;
+				    focusword.textContent += charr;
+				}
+			}
+		}
+	    }
+	    else{
+		//space key
+	        if(e.keyCode == 32)
+			slideForward(focusword.id);
+		//move back with alt
+		else if(e.altKey)
+			slideBackward(focusword.id);
+		//delete word with backspace
+		else if(e.keyCode == 8){
+			focusword.textContent = '';
+			//look for next word to take its place, 
+			//or if at end, previous
+		    	var res = slideForward(focusword.id);
+		    	if(res == -1)
+				res = slideBackward(focusword.id);
+		    	//old focus word becomes of class void
+		    	focusword.className = 'void';
+		    	if(res ==-1)
+				alert('no more words!');
+		}
+		else{
+		    //taking character/symbol as is
+		    var charr = getChar(e);
+		    if(charr){
+			focusword.textContent = charr;
+			text_edit_mode = true;
+		    }
+		}
+	    }
+	}
+	//get event type
+	var evt = e.type;
+	//while(evt.length < 10) evt += ' ';
+	//console.log(evt+' keyCode='+e.keyCode+' which='+e.which+' charCode='+e.charCode+' char='+String.fromCharCode(e.keyCode || e.charCode)+(e.shiftKey ? ' shifttoo' : '')+(e.ctrlKey ? ' control':'')+(e.altKey?' alttoo':'')+(e.metaKey ? ' metaaadude':''));
+	//want no return value
+	if(e.preventDefault)
+		e.preventDefault();
+	else
+		e.returnValue = false;
+    }
+}
+
+//move focusword incrementally
+function slideForward(idstr){	
+	//now make focus_word a 'word' and next word 'focus_word'
+	//increment
+	var id = parseInt(idstr);
+	id+=1;
+	var next = document.getElementById(""+id);
+	//skip over all empty word containers (created through user deletion)
+	while(next != null && 0 == next.textContent.localeCompare('')){
+		//console.log(id);
+		id+=1;
+		next = document.getElementById(''+id);
+	}
+	if(next != null){
+    	    next.className ='focus_word';
+	    document.getElementById(idstr).className = 'word';
+	    checkScroll(next,idstr);
+   	}
+	else
+	    return -1;
+}
+
+//move focusword decrementally
+function slideBackward(idstr){
+	//now make focus_word a 'word' and previous word 'focus_word'
+	//increment
+	var id = parseInt(idstr);
+	id-=1;
+	var next = document.getElementById(""+id);
+	//skip over all empty word containers (created through user deletion)
+	while(next != null && 0 == next.textContent.localeCompare('')){
+		id-=1;
+		next = document.getElementById(''+id);
+	}
+	if(next != null){
+    	    next.className ='focus_word';
+	    document.getElementById(idstr).className = 'word';
+	    checkScroll(next,idstr);
+   	}
+	else
+	    return -1;
+}
+
+//move scroll to keep focus_word centered
+function checkScroll(focusel,id){
+	//get position of focus_word
+	var yPos = 0;
+	var yPos2 = 0;
+	var element = focusel;
+	//loop to get height
+	//console.log('off '+element.offsetTop+' scro '+element.scrollTop+' clien '+element.clientTop);
+	yPos += (element.offsetTop - element.scrollTop + element.clientTop);
+	yPos -= element.parentElement.scrollTop;
+	element = element.parentElement;
+	yPos -= element.parentElement.scrollTop;
+	//now get position of old focus	
+	element = document.getElementById(id);
+	yPos2+=(element.offsetTop-element.scrollTop+element.clientTop);
+	yPos2-= element.parentElement.scrollTop;
+	element = element.parentElement;
+	yPos2 -= element.parentElement.scrollTop;
+	//detect if their is a difference between the two,
+	//if so, may need to move
+	var diff = yPos2 - yPos;
+	if(diff != 0){
+		//calculate height of text container
+		var txtbox = document.getElementById('main');
+		var txty = txtbox.offsetTop;
+		element = txtbox.parentElement;
+		while(element){
+			//console.log('off '+element.offsetTop+' scro '+element.scrollTop+' clien '+element.clientTop);
+	
+			txty+=(element.offsetTop-element.scrollTop+element.clientTop);
+			element = element.parentElement;
+		}
+		//may have to add constant later on
+		var threshold = txtbox.clientHeight/2 + txty;
+		//console.log(threshold+' thresh and curr '+yPos);
+		//if moving up, can't pass threshold of halfway up
+		if(diff > 0){
+			if(yPos < threshold)
+				txtbox.scrollTop -=diff;
+		}
+		//else, can't pass threshold of halfway down
+		else{
+			if(yPos > threshold)
+				txtbox.scrollTop -=diff;
+		}
+	}
+}
+
+//take key input and return char if it is a visible output
+function getChar(e){
+	if(e.keyCode >= 58 && e.keyCode <= 90){
+	    if(e.shiftKey)
+		return String.fromCharCode(e.keyCode);
+	    //otherwise lowercase
+	    else
+		return String.fromCharCode(e.keyCode).toLowerCase();
+	}
+	//space
+	if(e.keyCode == 32)
+		return " ";
+	if(e.keyCode == 192){
+		if(e.shiftKey)
+			return '~';
+		else
+			return '`';
+	}
+	if(e.keyCode >= 48 && e.keyCode <= 57){
+		if(e.shiftKey){
+			switch(e.keyCode){
+				case 48: return ')';
+				case 49: return '!';
+				case 50: return '@';
+				case 51: return '#';
+				case 52: return '$';
+				case 53: return '%';
+				case 54: return '^';
+				case 55: return '&';
+				case 56: return '*';
+				case 57: return '(';
+			}
+		}
+		else{
+			var num = (e.keyCode - 48);
+			return num.toString();
+		}
+	}
+	if((e.keyCode >= 186 && e.keyCode <= 191) || (e.keyCode >= 219 && e.keyCode <= 222)){
+		if(!e.shiftKey){
+			switch(e.keyCode){
+				case 186: return ';';
+				case 187: return '=';
+				case 188: return ',';
+				case 189: return '-';
+				case 190: return '.';
+				case 191: return '/';
+				case 219: return '[';
+				case 220: return '\\';
+				case 221: return ']';
+				case 222: return "'";
+			}
+		}
+		else{
+			switch(e.keyCode){
+				case 186: return ':';
+				case 187: return '+';
+				case 188: return '<';
+				case 189: return '_';
+				case 190: return '>';
+				case 191: return '?';
+				case 219: return '{';
+				case 220: return '|';
+				case 221: return '}';
+				case 222: return '"';
+			}
+		}
+	}
+}
+
+//perform transcription
+function WebSocketTest(num)
          {  //audio file received
 var fileInput = document.getElementById("sound");
 var message="";
@@ -17,53 +299,78 @@ if('files' in fileInput){
 		var blob = new Blob([arrBuff]);
 		var wavFile = new wav(blob);
 		wavFile.onloadend = function(){
-			console.log(this);
+			//console.log(this);
 			var size = this.getDuration();
-			console.log(size);
-			var count = size/300;
-			count = Math.ceil(count);
-			var newBuff;
-			for(z=0;z<count;z++){
+			//console.log(size);
+			if(size != -1){
+			    var count = size/300;   //turning 5 mins to 3
+			    count = Math.ceil(count);
+			    //var newBuff;
+			    for(z=0;z<count;z++){
+				//respond with error if too long or no audio?
 				if((z+1)==count){
-				     this.slice(z*300,size%300,sliceem);
+				     this.slice(z*300,size%300,sliceem,z);
 				}
 				else{
-				     this.slice(z*300,300,sliceem);
+				     this.slice(z*300,300,sliceem,z);
 				}
-			}
-			function sliceem(input){
+			    }
+			    function sliceem(input,ind){
 				var newblob = new Blob([input]);
-				Buffs[Buffs.length] = newblob;
-				//calculate blob size and output?
-				console.log("blob is for"+sliceCount);
+				Buffs[ind] = newblob;
 				sliceCount++;
 				//last callback moves to next stage
-				if(sliceCount==count)
+				if(sliceCount==count){
+					//next step is to get token
 					StartStreaming(Buffs,count);
+				}
+			    }
+			}
+			//call again if -1
+			else{
+			    if(num >= 10)
+				alert('Not able to load wav');
+			    else
+			        WebSocketTest(num+1);
 			}
 	    };
 	    }
 	    fileReader.readAsArrayBuffer(myfile);
 	    }
 	
+	    //have all audio formatted to begin streaming
 	    function StartStreaming(Buffs,count5){
-		//make token and call first of WSSeshs
-		var tok=document.getElementById("vals").value;
-		//var mod="en-US_BroadbandModel";
-		var mod="en-US_NarrowbandModel";
-		var wsURI="wss://stream.watsonplatform.net/speech-to-text/api/v1/recognize?watson-token="+tok+"&model="+mod;
-		//call function which will build and monitor each ws sesh
-		WSSesh(Buffs,count5,0,wsURI);
+		//get token, may have to move this to get token for every buff[]
+		var tok = $.getJSON('/getToken.php');
+		tok.done(function(data){
+			console.log(data);
+		});
+		//always 'fails' with response text (token)
+		tok.fail(function(e){
+			var token = e.responseText;
+			var mod="en-US_BroadbandModel";
+			//var mod="en-US_NarrowbandModel";
+			var wsURI="wss://stream.watsonplatform.net/speech-to-text/api/v1/recognize?watson-token="+token+"&model="+mod;
+			console.log(count5+" total");
+			//call function which will build and monitor each ws sesh
+			WSSesh(Buffs,count5,0,wsURI,0);
+
+		});
 	    }
 
-	    function WSSesh(Buffs, count2, state, wsURI){
+	    function WSSesh(Buffs, count2, state, wsURI,index){
 
+		//var to tell difference between first and last 'listening'
+		var end = false;
+		//var to tell the start index of the div's made/added
+		var indexT = index;
 	        var ws = new WebSocket(wsURI);
 
 			ws.onopen = function()
                		{
+				console.log("Socket "+(state+1)+" open");
                   		// Web Socket connected, send data using send()
-		  		var msg = {'action': 'start', 'content-type': 'audio/wav', 'continuous': true, 'inactivity_timeout': -1};
+		  		var msg = {'action': 'start', 'content-type': 'audio/wav', 'continuous': true, 'inactivity_timeout': -1, 'interim_results': true};
                   		ws.send(JSON.stringify(msg));
                		};
 
@@ -71,21 +378,27 @@ if('files' in fileInput){
                		ws.onmessage = function (evt)
                		{
                   		var msg = evt.data;
-				//alert(msg+" "+count2+" "+state);
 				var msg2 = msg.replace(/\s/g,"");
-				console.log(msg);
+				//says state listening at start and finish of every connection
 		  		if(0 == msg2.localeCompare('{"state":"listening"}')){
-					console.log('said listening, state: '+state+' count: '+count2);
-					console.log(Buffs[state]);
-					//now need to send indexed buffer
-					ws.send(Buffs[state]);
-
-					//send closing message
-					var msg = {'action':'stop'};
-					ws.send(JSON.stringify(msg));
-					state++;
+					if(!end){
+						end = true;
+						//console.log(Buffs[state]);
+						//now need to send indexed buffer
+						ws.send(Buffs[state]);
+						//send closing message
+						var msg = {'action':'stop'};
+						ws.send(JSON.stringify(msg));
+						state++;
+					}else
+						ws.close();
 		  		} else{
-					console.log('Got Result');
+				    //need to determine if final
+				    var final = isFinal(msg2);
+				    //console.log(msg);
+				    //if it is a final result, parse regularly and output
+				    if(final){
+					//console.log(msg);
 					var count = 0;
 					var output = "";
 					var rawl="";
@@ -104,7 +417,7 @@ if('files' in fileInput){
 							rawl = parseIt(res[i]);
 							rawl= rawl.charAt(0).toUpperCase()+rawl.slice(1,rawl.length-1);
 							rawl = processing(rawl);
-							output+=rawl+"."+"<br>";
+							output+=rawl+".";
 						    }
 						    else{
 						    //only if even process
@@ -112,14 +425,17 @@ if('files' in fileInput){
 							   rawl= parseIt(res[i]);
 							   rawl=rawl.charAt(0).toUpperCase()+rawl.slice(1,rawl.length-1);
 							   rawl = processing(rawl);
-							   output+=rawl+"."+"<br>";
+							   output+=rawl+". ";
 							}
 							count++;
 						    }
 						}
 					}
-					document.write(output);
-					ws.close();
+					//finally add newest 'sentence' to doc
+					//as long as it isn't just a %HESITAT..
+					if(0 != output.localeCompare('%HESITATIO, .'))
+						indexT = addDivs(indexT,output);
+				    }
 		  		}
 
 				function parseIt(str){
@@ -128,17 +444,33 @@ if('files' in fileInput){
 				}
 				
 				function processing(str){
+					//console.log(str);
 					//replace all hesitations with commas
 					var ind = 0;
 					while(ind != -1){
 					    ind = str.indexOf('%HESITATION');
 					    if(ind == -1)
 						break;
+					    //console.log('hesitation '+ind);
 					    //create new string
-					    var strnew=str.slice(0,ind)+"*PAUSE*"+str.slice(ind+11);
+					    //HESIT at front
+					    if(ind == 0){
+						var strnew=", "+str.slice(ind+11);
+					    }
+					    else{
+					    var strnew=str.slice(0,ind-1)+", "+str.slice(ind+11);
+					    }
 					    str = strnew;
 					}
 					return str;
+				}
+				
+				function isFinal(str){
+					var arr = str.split("}")[1].split("\"");
+					if(0 == arr[2].localeCompare(":true"))
+						return true;
+					else
+						return false;
 				}
 
                		};
@@ -146,10 +478,11 @@ if('files' in fileInput){
 				
                		ws.onclose = function(){
                   		// websocket is closed.
-                  		alert("CONNECTION is closed..."+state+count2);
-				console.log(state+" "+count2);
+                  		console.log("CONNECTION is closed..."+state+count2);
 				if(state < count2)
-					WSSesh(Buffs, count2, state, wsURI);
+					WSSesh(Buffs, count2, state, wsURI,indexT);
+				else
+					console.log("Finished with Sockets");
                		};
 
 			ws.onerror = function(evt){
@@ -158,6 +491,38 @@ if('files' in fileInput){
 			};
             		
 	    }
+
+	    //function dynamically adding divs with words to doc
+	    function addDivs(ind, words){
+		//console.log(ind);
+		//replace white spaces
+		words = words.replace(/\s/g,"!!?!");
+		//break up string into array of text blocks
+		var word = words.split("!!?!");
+		var num = word.length;
+		//console.log('length of '+num);
+		//loop through making divs with text and adding them to doc
+		var i = 0;
+		while(i<num){
+		    var newDiv = document.createElement('div');
+		    //dynamically identify
+		    newDiv.id = i+ind;
+		    var newContent = document.createTextNode(word[i]);
+		    newDiv.appendChild(newContent);
+		    var textBox = document.getElementById("main");
+		    if(ind != 0 || i != 0){
+			newDiv.className = 'word';
+			textBox.appendChild(newDiv);
+		    }
+		    else{
+			//working with very first text block
+			newDiv.className = 'focus_word';
+			textBox.appendChild(newDiv);
+		    }
+		    i++;
+		}
+		return num+ind;
+	    } 
 
 	    //function to create wav file object
 	    function wav(file) {
@@ -266,7 +631,7 @@ wav.prototype.parseData = function () {
     throw 'NOT_CANONICAL_FORMAT: unsupported "' + chunkType + '"" chunk - was expecting data';
   }
 };
-wav.prototype.slice = function (start, length, callback) {
+wav.prototype.slice = function (start, length, callback,looper) {
   
   var reader = new FileReader();
   var that = this;
@@ -292,7 +657,7 @@ wav.prototype.slice = function (start, length, callback) {
     var dataChunkSize = new Uint8Array(this.result, 40, 4);
     that.tolittleEndianDecBytes(dataChunkSize, dataBlob.size);
 
-    if (callback) callback.apply(that, [this.result]);
+    if (callback) callback.apply(that, [this.result,looper]);
   };
 };
 wav.prototype.readText = function (start, length) {
@@ -375,16 +740,16 @@ wav.prototype.toString = function () {
 
       </script>	
    </head>
-   <body>
-      <div id="sse">
-		<h3>Token</h3><br>
-		<input type="text" name="tok" id="vals"><br>
-		<h3>Password</h3><br>
-		<input type="password" id="pass"><br>
-		<h3>AudioFile</h3><br>
-		<input type="file" name="sound" multiple="multiple" id="sound" onchange="WebSocketTest()"><br>
+   <body onload="SetEventListen()">
+      <div id="panel" class="control">
+		<h3>Password</h3>
+		<input type="password" id="pass">
+		<h3>AudioFile</h3>
+		<input type="file" name="sound" multiple="multiple" id="sound" onchange="WebSocketTest(0)">
+      		<!<div id="info"><!</div>
+		<!<a download="info.wav" id="downloadLink" style:"display: none"><!</a>
+      		<input id='edit_inp' type='button' value="Begin Editing">
       </div>
-      <div id="info"></div><br>
-	<a download="info.wav" id="downloadLink" style:"display: none"></a>
+      <div id='main' class=textbox'></div>
    </body>
 </html>
