@@ -1,7 +1,8 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<link rel="stylesheet" href="main.css">
+<link rel="shortcut icon" type="image/x-icon" href="/res/media/Favicon.ico">
+<link rel="stylesheet" href="mainv2.css">
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
 <script type="text/javascript">
 //Coding functionality of effective editor
@@ -20,7 +21,7 @@ function SetEventListen(){
 	//two situations, either moving between words, or editing current word
 	//get focus_word element
 	var focuswordarr = document.getElementsByClassName('focus_word');
-	//need to make sure their is a focus word before continuing
+	//need to make sure there is a focus word before continuing
 	if(focuswordarr.length == 1){
 	    var focusword = focuswordarr[0];
 	    if(text_edit_mode){
@@ -341,20 +342,24 @@ if('files' in fileInput){
 	    //have all audio formatted to begin streaming
 	    function StartStreaming(Buffs,count5){
 		//get token, may have to move this to get token for every buff[]
-		var tok = $.getJSON('/getToken.php');
+		var key = document.getElementById("pass").value;
+		var tok = $.getJSON('./getToken.php?key='+key);
 		tok.done(function(data){
 			console.log(data);
 		});
 		//always 'fails' with response text (token)
 		tok.fail(function(e){
-			var token = e.responseText;
+		    var token = e.responseText;
+		    if(0!=token.substr(0,5).localeCompare("Issue")){
 			var mod="en-US_BroadbandModel";
 			//var mod="en-US_NarrowbandModel";
 			var wsURI="wss://stream.watsonplatform.net/speech-to-text/api/v1/recognize?watson-token="+token+"&model="+mod;
 			console.log(count5+" total");
 			//call function which will build and monitor each ws sesh
 			WSSesh(Buffs,count5,0,wsURI,0);
-
+		    }
+		    else
+			alert("Error: "+token);
 		});
 	    }
 
@@ -742,9 +747,9 @@ wav.prototype.toString = function () {
    </head>
    <body onload="SetEventListen()">
       <div id="panel" class="control">
-		<h3>Password</h3>
-		<input type="password" id="pass">
-		<h3>AudioFile</h3>
+		<h3>Scriber Key</h3>
+		<input id="pass">
+		<h3>Audio File</h3>
 		<input type="file" name="sound" multiple="multiple" id="sound" onchange="WebSocketTest(0)">
       		<!<div id="info"><!</div>
 		<!<a download="info.wav" id="downloadLink" style:"display: none"><!</a>
